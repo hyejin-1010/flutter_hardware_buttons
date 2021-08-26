@@ -24,9 +24,21 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     interface VolumeButtonListener {
         fun onVolumeButtonEvent(event: VolumeButtonEvent)
     }
+
     enum class VolumeButtonEvent(val value: Int) {
         VOLUME_UP(24),
         VOLUME_DOWN(25),
+    }
+
+    interface HelloButtonListener {
+        fun onHelloButtonEvent(event: HelloButtonEvent)
+    }
+
+    enum class HelloButtonEvent(val value: Int) {
+        LEFT(21)
+        RIGHT(22)
+        SELECT(66)
+        BACK(4)
     }
 
     interface HomeButtonListener {
@@ -60,6 +72,9 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
 
     private var keyWatcher: KeyWatcher? = null
     private var volumeButtonListeners: ArrayList<VolumeButtonListener> = arrayListOf()
+
+    private var helloButtonWatcher: KeyWatcher? = null
+    private var helloButtonListeners: ArrayList<HelloButtonListener> = arrayListOf()
 
     private var homeButtonWatcher: HomeButtonWatcher? = null
     private var homeButtonListeners: ArrayList<HomeButtonListener> = arrayListOf()
@@ -101,6 +116,7 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
                         // we should manually clean up resources (i.e. listeners) when activity state becomes invalid (in order to avoid memory leak).
                         // related: https://github.com/flutter/plugins/pull/1992/files/04df85fef5a994d93d89b02b27bb7789ec452528#diff-efd825c710217272904545db4b2198e2
                         volumeButtonListeners.clear()
+                        helloButtonListener.clear()
                         homeButtonListeners.clear()
                         lockButtonListeners.clear()
                         detachKeyWatcher()
@@ -116,6 +132,13 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     fun addVolumeButtonListener(listener: VolumeButtonListener) {
         if (!volumeButtonListeners.contains(listener)) {
             volumeButtonListeners.add(listener)
+        }
+        attachKeyWatcherIfNeeded()
+    }
+
+    fun addHelloButtonListener(listener: HelloButtonListener) {
+        if (!helloButtonListeners.contains(listener)) {
+            helloButtonListeners.add(listener)
         }
         attachKeyWatcherIfNeeded()
     }
@@ -137,6 +160,13 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     fun removeVolumeButtonListener(listener: VolumeButtonListener) {
         volumeButtonListeners.remove(listener)
         if (volumeButtonListeners.size == 0) {
+            detachKeyWatcher()
+        }
+    }
+
+    fun removeHelloButtonListener(listener: HelloButtonListener) {
+        helloButtonListeners.remove(listener)
+        if (helloButtonListeners.size == 0) {
             detachKeyWatcher()
         }
     }
