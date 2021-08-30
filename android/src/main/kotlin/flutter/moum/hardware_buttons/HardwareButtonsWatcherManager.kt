@@ -20,6 +20,7 @@ import io.flutter.plugin.common.PluginRegistry
 // singleton object for managing various resources related with getting hardware button events.
 // those who need to listen to any hardware button events add listener to this single instance.
 // e.g. HardwareButtonsWatcherManager.getInstance(application, activity).addVolumeButtonListener(volumeButtonListener)
+// PluginRegistry.ActivityResultListener
 class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     interface VolumeButtonListener {
         fun onVolumeButtonEvent(event: VolumeButtonEvent)
@@ -35,10 +36,10 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     }
 
     enum class HelloButtonEvent(val value: Int) {
-        LEFT(21)
-        RIGHT(22)
-        SELECT(66)
-        BACK(4)
+        LEFT(21),
+        RIGHT(22),
+        SELECT(66),
+        BACK(4),
     }
 
     interface HomeButtonListener {
@@ -73,7 +74,6 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     private var keyWatcher: KeyWatcher? = null
     private var volumeButtonListeners: ArrayList<VolumeButtonListener> = arrayListOf()
 
-    private var helloButtonWatcher: KeyWatcher? = null
     private var helloButtonListeners: ArrayList<HelloButtonListener> = arrayListOf()
 
     private var homeButtonWatcher: HomeButtonWatcher? = null
@@ -116,7 +116,7 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
                         // we should manually clean up resources (i.e. listeners) when activity state becomes invalid (in order to avoid memory leak).
                         // related: https://github.com/flutter/plugins/pull/1992/files/04df85fef5a994d93d89b02b27bb7789ec452528#diff-efd825c710217272904545db4b2198e2
                         volumeButtonListeners.clear()
-                        helloButtonListener.clear()
+                        helloButtonListeners.clear()
                         homeButtonListeners.clear()
                         lockButtonListeners.clear()
                         detachKeyWatcher()
@@ -188,13 +188,19 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
     private fun attachKeyWatcherIfNeeded() {
         val application = application ?: return
         val activity = currentActivity ?: return
-        if (volumeButtonListeners.size > 0 && keyWatcher == null && !userDeniedDrawOverlaysPermission) {
+
+        if ((volumeButtonListeners.size > 0 || helloButtonListeners.size > 0) && keyWatcher == null && !userDeniedDrawOverlaysPermission) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(application)) {
                 val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + application.packageName))
                 activity.startActivityForResult(intent, REQUEST_CODE_OVERLAY_PERMISSION)
             } else {
                 keyWatcher = KeyWatcher(application.applicationContext, callback = {
-                    dispatchVolumeButtonEvent(it)
+                    if (volumeButtonListeners.size > 0) {
+                        dispatchVolumeButtonEvent(it)
+                    }
+                    if (helloButtonListeners.size > 0) {
+                        dispatchHelloButtonEvent(it)
+                    }
                     currentActivity?.dispatchKeyEvent(it)
                 }, findFocusCallback = { currentActivity?.window?.decorView?.rootView })
                 addOverlayWindowView(application, keyWatcher!!)
@@ -258,6 +264,23 @@ class HardwareButtonsWatcherManager: PluginRegistry.ActivityResultListener {
             if (volumeButtonEvent != null) {
                 for (listener in volumeButtonListeners) {
                     listener.onVolumeButtonEvent(volumeButtonEvent)
+                }
+            }
+        }
+    }
+
+    private fun dispatchHelloButtonEvent(keyEvent: KeyEvent) {
+        if (keyEvent.action == KeyEvent.ACTION_DOWN) {
+            val helloButtonEvent = when (keyEvent.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> HelloButtonEvent.LEFT
+                KeyEvent.KEYCODE_DPAD_RIGHT -> HelloButtonEvent.RIGHT
+                KeyEvent.KEYCODE_ENTER -> HelloButtonEvent.SELECT
+                KeyEvent.KEYCODE_BACK -> HelloButtonEvent.BACK
+                else -> null
+            }
+            if (helloButtonEvent != null) {
+                for (listener in helloButtonListeners) {
+                    listener.onHelloButtonEvent(helloButtonEvent)
                 }
             }
         }
